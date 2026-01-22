@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node.js Data Management App</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Node.js Data Management App</h1>
+
+        <!-- Display All Data -->
+        <div class="section">
+            <h2>All Data</h2>
+            <button class="btn" onclick="loadAllData()">Load All Data</button>
+            <div id="allDataResponse"></div>
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Get Single Item -->
+        <div class="section">
+            <h2>Get Single Item</h2>
+            <div class="form-group">
+                <input type="number" id="getItemId" placeholder="Enter ID to retrieve">
+            </div>
+            <button class="btn" onclick="getSingleItem()">Get Item</button>
+            <div id="singleItemResponse" class="response"></div>
+        </div>
+
+        <!-- Add New Item -->
+        <div class="section">
+            <h2>Add New Item</h2>
+            <div class="form-group">
+                <input type="number" id="newItemId" placeholder="ID">
+            </div>
+            <div class="form-group">
+                <textarea id="newItemData" placeholder="Enter data (JSON format)"></textarea>
+            </div>
+            <button class="btn btn-success" onclick="addItem()">Add Item</button>
+            <div id="addItemResponse" class="response"></div>
+        </div>
+
+        <!-- Update Item -->
+        <div class="section">
+            <h2>Update Item</h2>
+            <div class="form-group">
+                <input type="number" id="updateItemId" placeholder="ID to update">
+            </div>
+            <div class="form-group">
+                <textarea id="updateItemData" placeholder="Enter updated data (JSON format)"></textarea>
+            </div>
+            <button class="btn" onclick="updateItem()">Update Item</button>
+            <div id="updateItemResponse" class="response"></div>
+        </div>
+
+        <!-- Delete Item -->
+        <div class="section">
+            <h2>Delete Item</h2>
+            <div class="form-group">
+                <input type="number" id="deleteItemId" placeholder="ID to delete">
+            </div>
+            <button class="btn btn-danger" onclick="deleteItem()">Delete Item</button>
+            <div id="deleteItemResponse" class="response"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load all data
+        async function loadAllData() {
+            try {
+                const response = await fetch('/');
+                const data = await response.json();
+
+                const tableBody = document.getElementById('tableBody');
+                tableBody.innerHTML = '';
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+
+                    // Format the data for display
+                    let displayData = typeof item.data === 'object' ? JSON.stringify(item.data) : item.data || item;
+
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${displayData}</td>
+                        <td>
+                            <button class="btn" onclick="loadIntoForm(${item.id}, '${encodeURIComponent(JSON.stringify(item))}')">Edit</button>
+                            <button class="btn btn-danger" onclick="confirmDelete(${item.id})">Delete</button>
+                        </td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+
+                showResponse('allDataResponse', `Loaded ${data.length} items`, 'success');
+            } catch (error) {
+                showResponse('allDataResponse', `Error loading data: ${error.message}`, 'error');
+            }
+        }
+
+        // Get single item
+        async function getSingleItem() {
+            const id = document.getElementById('getItemId').value;
+
+            if (!id) {
+                showResponse('singleItemResponse', 'Please enter an ID', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/${id}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showResponse('singleItemResponse', `Found item: ${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    showResponse('singleItemResponse', `Item with ID ${id} not found`, 'error');
+                }
+            } catch (error) {
+                showResponse('singleItemResponse', `Error getting item: ${error.message}`, 'error');
+            }
+        }
+
+        // Add new item
+        async function addItem() {
+            const id = document.getElementById('newItemId').value;
+            const dataInput = document.getElementById('newItemData').value;
+
+            if (!id) {
+                showResponse('addItemResponse', 'Please enter an ID', 'error');
+                return;
+            }
+
+            if (!dataInput) {
+                showResponse('addItemResponse', 'Please enter some data', 'error');
+                return;
+            }
+
+            try {
+                // Try to parse as JSON, otherwise use as string
+                let parsedData;
+                try {
+                    parsedData = JSON.parse(dataInput);
+                } catch {
+                    parsedData = dataInput;
+                }
+
+                const response = await fetch('/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: parseInt(id),
+                        data: parsedData
+                    })
+                });
+
+                if (response.ok) {
+                    showResponse('addItemResponse', 'Item added successfully', 'success');
+                    document.getElementById('newItemId').value = '';
+                    document.getElementById('newItemData').value = '';
+                    loadAllData(); // Refresh the table
+                } else {
+                    const message = await response.text();
+                    showResponse('addItemResponse', `Error adding item: ${message}`, 'error');
+                }
+            } catch (error) {
+                showResponse('addItemResponse', `Error adding item: ${error.message}`, 'error');
+            }
+        }
+
+        // Update item
+        async function updateItem() {
+            const id = document.getElementById('updateItemId').value;
+            const dataInput = document.getElementById('updateItemData').value;
+
+            if (!id) {
+                showResponse('updateItemResponse', 'Please enter an ID', 'error');
+                return;
+            }
+
+            if (!dataInput) {
+                showResponse('updateItemResponse', 'Please enter some data', 'error');
+                return;
+            }
+
+            try {
+                // Try to parse as JSON, otherwise use as string
+                let parsedData;
+                try {
+                    parsedData = JSON.parse(dataInput);
+                } catch {
+                    parsedData = dataInput;
+                }
+
+                const response = await fetch(`/update/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(parsedData)
+                });
+
+                if (response.ok) {
+                    showResponse('updateItemResponse', 'Item updated successfully', 'success');
+                    document.getElementById('updateItemId').value = '';
+                    document.getElementById('updateItemData').value = '';
+                    loadAllData(); // Refresh the table
+                } else {
+                    const message = await response.text();
+                    showResponse('updateItemResponse', `Error updating item: ${message}`, 'error');
+                }
+            } catch (error) {
+                showResponse('updateItemResponse', `Error updating item: ${error.message}`, 'error');
+            }
+        }
+
+        // Delete item
+        async function deleteItem() {
+            const id = document.getElementById('deleteItemId').value;
+
+            if (!id) {
+                showResponse('deleteItemResponse', 'Please enter an ID', 'error');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete item with ID ${id}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/delete/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showResponse('deleteItemResponse', 'Item deleted successfully', 'success');
+                    document.getElementById('deleteItemId').value = '';
+                    loadAllData(); // Refresh the table
+                } else {
+                    const message = await response.text();
+                    showResponse('deleteItemResponse', `Error deleting item: ${message}`, 'error');
+                }
+            } catch (error) {
+                showResponse('deleteItemResponse', `Error deleting item: ${error.message}`, 'error');
+            }
+        }
+
+        // Confirm delete (from table button)
+        function confirmDelete(id) {
+            if (confirm(`Are you sure you want to delete item with ID ${id}?`)) {
+                document.getElementById('deleteItemId').value = id;
+                deleteItem();
+            }
+        }
+
+        // Load item into update form
+        function loadIntoForm(id, encodedItem) {
+            const item = JSON.parse(decodeURIComponent(encodedItem));
+            document.getElementById('updateItemId').value = id;
+            document.getElementById('updateItemData').value = typeof item.data === 'object' ?
+                JSON.stringify(item.data, null, 2) :
+                (item.data || JSON.stringify(item));
+        }
+
+        // Show response message
+        function showResponse(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `response ${type}`;
+            element.style.display = 'block';
+
+            // Hide after 5 seconds
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 5000);
+        }
+
+        // Load all data when page loads
+        window.onload = function() {
+            loadAllData();
+        };
+    </script>
+</body>
+
+</html>
